@@ -1,47 +1,42 @@
-import sys
-from struct import pack,unpack
+#
+# Scan PNG file chunks.
+#
 
-def main():
-    filename = sys.argv[1]
+import sys
+import struct
+
+def png_open(filename):
     with open(filename, 'rb') as f:
         data = f.read()
-
-    if len(data) < 8:
-        print('not a png file; too short')
-        return
-
-    magic = unpack('!B3s4B', data[0:8])
-    print('magic:', magic)
+    magic = struct.unpack('!B 3s 4B', data[0:8])
     if magic[0] != 0x89:
-        print('not a png file; bad magic[0]')
-        return
+        raise ValueError('Not a png file!')
     if magic[1] != b'PNG':
-        print('not a png file; bad magic[1]')
-        return
+        raise ValueError('Not a png file!')
+    return data
 
-    print(filename, 'looks like a png file')
+def png_chunk(data, address):
+    i,j = (address, address+8)
+    chunk_len,chunk_type = struct.unpack('!I 4s', data[i:j])
+    i,j = (j, j+chunk_len+4)
+    chunk_data,chunk_crc = struct.unpack('!{0}s I'.format(chunk_len), data[i:j])
+    # todo: crc check
+    return (address, j, chunk_type, chunk_data)
 
-    print('chunk')
+def png_chunks(data):
     address = 8
     while address < len(data):
-        print('address', address)
+        chunk = png_chunk(data, address)
+        address = chunk[1]
+        yield chunk
 
-        start = address
-        end = address + 8
-        chunk_header = unpack('!I4s', data[start:end])
-        print('chunk_header', chunk_header)
-
-        start = end
-        end = start + chunk_header[0]
-        chunk_data = data[start:end]
-        if chunk_header[1] == b'iTXt':
-            print('chuck_data', chunk_data)
-
-        start = end
-        end = start + 4
-        crc, = unpack('!I', data[start:end])
-        print('crc', crc)
-        address = end
+def main():
+    if len(sys.argv) != 2:
+        print('usage: pngscan <filename>')
+        return
+    data = png_open(sys.argv[1])
+    for chunk in png_chunks(data):
+        print(chunk[0], chunk[2], chunk[3][0:12])
 
 if __name__ == '__main__':
     main()
