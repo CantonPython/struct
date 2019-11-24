@@ -4,6 +4,7 @@
 
 import sys
 import struct
+import binascii
 
 def png_open(filename):
     with open(filename, 'rb') as f:
@@ -20,7 +21,10 @@ def png_chunk(data, address):
     chunk_len,chunk_type = struct.unpack('!I 4s', data[i:j])
     i,j = (j, j+chunk_len+4)
     chunk_data,chunk_crc = struct.unpack('!{0}s I'.format(chunk_len), data[i:j])
-    # todo: crc check
+    crc = binascii.crc32(chunk_type)
+    crc = binascii.crc32(chunk_data, crc)
+    if (crc != chunk_crc):
+        raise ValueError('Bad CRC address {0}.'.format(address))
     return (address, j, chunk_type, chunk_data)
 
 def png_chunks(data):
