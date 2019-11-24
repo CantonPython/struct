@@ -36,9 +36,24 @@ def png_chunks(data, find='*'):
             yield chunk
 
 def png_decode(chunk):
+    if chunk[2] == 'IHDR':
+        return png_decode_IHDR(chunk[3])
     if chunk[2] == 'tEXt':
         return png_decode_tEXt(chunk[3])
     raise ValueError('Unknown chunk type {0} address'.format(chunk[2],chunk[0]))
+
+def png_decode_IHDR(chunk_data):
+    """
+    IHDR
+    Width   4 bytes
+    Height  4 bytes
+    Bit depth   1 byte
+    Colour type 1 byte
+    Compression method  1 byte
+    Filter method   1 byte
+    Interlace method    1 byte
+    """
+    return struct.unpack('!2I5B', chunk_data)
 
 def png_decode_tEXt(chunk_data):
     keyword,text = chunk_data.decode('ascii').split('\0')
@@ -49,14 +64,27 @@ def main():
         print('usage: pngscan <filename>')
         return
     data = png_open(sys.argv[1])
+
     print('chunks:')
     for chunk in png_chunks(data):
         print(chunk[0], chunk[2], chunk[3][0:12])
 
-    print('text:')
+    print('text info:')
     for chunk in png_chunks(data, find='tEXt'):
         keyword,text = png_decode(chunk)
         print(keyword, text)
+
+    print('image header:')
+    chunk = png_chunk(data, 8)
+    if chunk[2] == 'IHDR':
+        ihdr = png_decode_IHDR(chunk[3])
+        print('  width:', ihdr[0])
+        print('  height:', ihdr[1])
+        print('  bit depth:', ihdr[2])
+        print('  color type:', ihdr[3])
+        print('  compression method:',ihdr[4])
+        print('  filter method:', ihdr[5])
+        print('  interlace method:', ihdr[6])
 
 if __name__ == '__main__':
     main()
