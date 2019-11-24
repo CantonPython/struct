@@ -6,29 +6,34 @@ import sys
 import struct
 import binascii
 
+PNG_MAGIC_SIZE = 8
+PNG_CHUNK_HDR_SIZE = 8
+PNG_CHUNK_CRC_SIZE = 4
+
+class PngScanError(Exception):
+    pass
+
 def png_open(filename):
     with open(filename, 'rb') as f:
         data = f.read()
-    magic = struct.unpack('!B 3s 4B', data[0:8])
-    if magic[0] != 0x89:
-        raise ValueError('Not a png file!')
-    if magic[1] != b'PNG':
-        raise ValueError('Not a png file!')
+    magic = struct.unpack('!B 3s 4B', data[0:PNG_MAGIC_SIZE])
+    if magic != (0x89, b'PNG', 0x0d, 0x0a, 0x1a, 0x0a):
+        raise PngScanError('Not a png file!')
     return data
 
 def png_chunk(data, address):
-    i,j = (address, address+8)
+    i,j = (address, address+PNG_CHUNK_HDR_SIZE)
     chunk_len,chunk_type = struct.unpack('!I 4s', data[i:j])
-    i,j = (j, j+chunk_len+4)
+    i,j = (j, j+chunk_len+PNG_CHUNK_CRC_SIZE)
     chunk_data,chunk_crc = struct.unpack('!{0}s I'.format(chunk_len), data[i:j])
     crc = binascii.crc32(chunk_type)
     crc = binascii.crc32(chunk_data, crc)
     if (crc != chunk_crc):
-        raise ValueError('Bad CRC address {0}.'.format(address))
+        raise PngScanError('Bad CRC address {0}.'.format(address))
     return (address, j, chunk_type.decode('ascii'), chunk_data)
 
 def png_chunks(data, find='*'):
-    address = 8
+    address = PNG_MAGIC_SIZE
     while address < len(data):
         chunk = png_chunk(data, address)
         address = chunk[1]
@@ -40,7 +45,7 @@ def png_decode(chunk):
         return png_decode_IHDR(chunk[3])
     if chunk[2] == 'tEXt':
         return png_decode_tEXt(chunk[3])
-    raise ValueError('Unknown chunk type {0} address'.format(chunk[2],chunk[0]))
+    raise PngScanError('Unknown chunk type {0} address'.format(chunk[2],chunk[0]))
 
 def png_decode_IHDR(chunk_data):
     """
