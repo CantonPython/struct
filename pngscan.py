@@ -25,7 +25,7 @@ def png_chunk(data, address):
     crc = binascii.crc32(chunk_data, crc)
     if (crc != chunk_crc):
         raise ValueError('Bad CRC address {0}.'.format(address))
-    return (address, j, chunk_type, chunk_data)
+    return (address, j, chunk_type.decode('ascii'), chunk_data)
 
 def png_chunks(data):
     address = 8
